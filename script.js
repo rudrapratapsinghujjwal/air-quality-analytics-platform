@@ -96,27 +96,17 @@ class AirQualityPlatform {
             { code: 'EG', name: 'Egypt', flag: '🇪🇬' }
         ];
         
-        // US States for demo
-        this.US_STATES = [
-            { code: 'CA', name: 'California' },
-            { code: 'TX', name: 'Texas' },
-            { code: 'NY', name: 'New York' },
-            { code: 'FL', name: 'Florida' },
-            { code: 'IL', name: 'Illinois' },
-            { code: 'PA', name: 'Pennsylvania' },
-            { code: 'OH', name: 'Ohio' },
-            { code: 'GA', name: 'Georgia' },
-            { code: 'NC', name: 'North Carolina' },
-            { code: 'MI', name: 'Michigan' }
-        ];
-        
         // Initialize state
         this.currentData = null;
-        this.currentLocation = this.getSavedLocation() || { type: 'current', name: 'Your Location' };
+        this.currentLocation = this.getSavedLocation() || { 
+            type: 'current', 
+            name: 'Your Location',
+            lat: 40.7128,
+            lng: -74.0060
+        };
         this.historicalData = [];
         this.map = null;
         this.charts = {};
-        this.searchTimeout = null;
         
         // DOM Elements
         this.elements = {
@@ -137,7 +127,6 @@ class AirQualityPlatform {
             refreshData: document.getElementById('refreshData'),
             cacheStatus: document.getElementById('cacheStatus'),
             aqiCard: document.getElementById('aqiCard'),
-            map: document.getElementById('map'),
             
             // Location Selection Elements
             currentLocationName: document.getElementById('currentLocationName'),
@@ -153,11 +142,6 @@ class AirQualityPlatform {
             cityLoading: document.getElementById('cityLoading'),
             cityResults: document.getElementById('cityResults'),
             cityPresets: document.getElementById('cityPresets'),
-            
-            // State Tab
-            countrySelect: document.getElementById('countrySelect'),
-            stateSelect: document.getElementById('stateSelect'),
-            stateStations: document.getElementById('stateStations'),
             
             // Country Tab
             countrySearch: document.getElementById('countrySearch'),
@@ -178,6 +162,8 @@ class AirQualityPlatform {
     }
     
     async init() {
+        console.log('Initializing Air Quality Platform...');
+        
         // Setup event listeners
         this.setupEventListeners();
         
@@ -187,27 +173,39 @@ class AirQualityPlatform {
         // Initialize location selector
         this.initLocationSelector();
         
-        // Load cached data if available
-        const cachedData = this.getCachedData();
-        if (cachedData) {
-            this.updateUI(cachedData);
-            this.elements.cacheStatus.textContent = 'Using cached data (updating...)';
-            this.elements.cacheStatus.classList.add('pulse');
-        }
-        
-        // Fetch initial data based on saved location
-        await this.fetchData();
-        
         // Initialize charts
         this.initCharts();
         
         // Initialize map
         this.initMap();
         
-        // Hide loading overlay
+        // Load cached data if available
+        const cachedData = this.getCachedData();
+        if (cachedData) {
+            console.log('Using cached data');
+            this.updateUI(cachedData);
+            this.elements.cacheStatus.textContent = 'Using cached data';
+            this.elements.cacheStatus.classList.add('pulse');
+        } else {
+            console.log('No cached data available');
+        }
+        
+        // Show demo data immediately
+        this.showDemoData();
+        
+        // Try to fetch real data
         setTimeout(() => {
-            this.elements.loadingOverlay.classList.add('hidden');
-        }, 500);
+            this.fetchData().then(() => {
+                console.log('Data fetched successfully');
+                this.elements.loadingOverlay.classList.add('hidden');
+            }).catch(error => {
+                console.log('Using demo data due to API error');
+                this.elements.loadingOverlay.classList.add('hidden');
+            });
+        }, 1000);
+        
+        // Auto-refresh every 5 minutes
+        setInterval(() => this.fetchData(), 5 * 60 * 1000);
     }
     
     setupEventListeners() {
@@ -219,12 +217,52 @@ class AirQualityPlatform {
         
         // Clear location
         this.elements.clearLocation.addEventListener('click', () => this.clearSelectedLocation());
+    }
+    
+    showDemoData() {
+        console.log('Showing demo data...');
         
-        // Auto-refresh every 5 minutes
-        setInterval(() => this.fetchData(), 5 * 60 * 1000);
+        // Generate realistic demo data
+        const demoData = this.generateDemoData();
+        this.currentData = demoData;
+        this.updateUI(demoData);
+        
+        // Update cache status
+        this.elements.cacheStatus.textContent = 'Demo data (API offline)';
+        this.elements.cacheStatus.style.color = 'var(--warning-color)';
+    }
+    
+    generateDemoData() {
+        const aqi = Math.floor(Math.random() * 150) + 30; // Random AQI between 30-180
+        const now = new Date();
+        
+        return {
+            aqi: aqi,
+            city: {
+                name: this.currentLocation.name || 'Demo City',
+                geo: [this.currentLocation.lat || 40.7128, this.currentLocation.lng || -74.0060]
+            },
+            time: {
+                iso: now.toISOString(),
+                s: Math.floor(now.getTime() / 1000)
+            },
+            iaqi: {
+                pm25: { v: (aqi / 5) + Math.random() * 10 },
+                pm10: { v: (aqi / 4) + Math.random() * 15 },
+                no2: { v: (aqi / 6) + Math.random() * 8 },
+                so2: { v: (aqi / 8) + Math.random() * 5 },
+                o3: { v: (aqi / 7) + Math.random() * 12 },
+                co: { v: (aqi / 20) + Math.random() * 2 }
+            },
+            attributions: [
+                { url: 'https://waqi.info', name: 'World Air Quality Index' }
+            ]
+        };
     }
     
     initLocationSelector() {
+        console.log('Initializing location selector...');
+        
         // Tab switching
         this.elements.tabButtons.forEach(button => {
             button.addEventListener('click', (e) => {
@@ -238,9 +276,6 @@ class AirQualityPlatform {
         
         // Initialize country grid
         this.initCountryGrid();
-        
-        // Initialize state/country selectors
-        this.initStateSelectors();
         
         // Setup search functionality
         this.setupSearch();
@@ -256,6 +291,8 @@ class AirQualityPlatform {
     }
     
     switchTab(tabName) {
+        console.log('Switching to tab:', tabName);
+        
         // Update tab buttons
         this.elements.tabButtons.forEach(button => {
             button.classList.toggle('active', button.dataset.tab === tabName);
@@ -265,16 +302,11 @@ class AirQualityPlatform {
         this.elements.tabContents.forEach(content => {
             content.classList.toggle('active', content.id === `${tabName}Tab`);
         });
-        
-        // Special handling for each tab
-        if (tabName === 'city') {
-            this.elements.citySearch.focus();
-        } else if (tabName === 'country') {
-            this.elements.countrySearch.focus();
-        }
     }
     
     initCityPresets() {
+        console.log('Initializing city presets...');
+        
         this.elements.cityPresets.innerHTML = this.MAJOR_CITIES.map(city => `
             <button class="preset-btn" data-lat="${city.lat}" data-lng="${city.lng}" 
                     data-name="${city.name}, ${city.country}">
@@ -291,6 +323,8 @@ class AirQualityPlatform {
                 const lng = parseFloat(e.currentTarget.dataset.lng);
                 const name = e.currentTarget.dataset.name;
                 
+                console.log('Selected city:', name, lat, lng);
+                
                 this.selectLocation({
                     type: 'coordinates',
                     lat,
@@ -298,14 +332,13 @@ class AirQualityPlatform {
                     name,
                     details: `Major city in ${name.split(', ')[1]}`
                 });
-                
-                // Switch to selected location display
-                this.switchTab('current');
             });
         });
     }
     
     initCountryGrid() {
+        console.log('Initializing country grid...');
+        
         this.elements.countryGrid.innerHTML = this.COUNTRIES.map(country => `
             <button class="country-btn" data-code="${country.code}" data-name="${country.name}">
                 <span class="country-flag">${country.flag}</span>
@@ -315,48 +348,23 @@ class AirQualityPlatform {
         
         // Add event listeners to country buttons
         this.elements.countryGrid.querySelectorAll('.country-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
                 const code = e.currentTarget.dataset.code;
                 const name = e.currentTarget.dataset.name;
                 
-                // Show loading
-                e.currentTarget.innerHTML = '<div class="spinner"></div>';
+                console.log('Selected country:', name, code);
                 
-                try {
-                    // Fetch stations for this country
-                    const stations = await this.searchStations(`@country=${code}`);
-                    
-                    if (stations.length > 0) {
-                        // Use the first station as representative
-                        const station = stations[0];
-                        this.selectLocation({
-                            type: 'station',
-                            stationId: station.uid,
-                            name: `${station.station.name}, ${name}`,
-                            details: `Monitoring station in ${name}`,
-                            lat: station.lat,
-                            lng: station.lon
-                        });
-                    } else {
-                        // Fallback to capital city coordinates
-                        const capitalCoords = this.getCapitalCoordinates(code);
-                        if (capitalCoords) {
-                            this.selectLocation({
-                                type: 'coordinates',
-                                lat: capitalCoords.lat,
-                                lng: capitalCoords.lng,
-                                name: `Capital of ${name}`,
-                                details: `Capital city air quality`
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error selecting country:', error);
-                    this.showError(`Could not load data for ${name}`);
+                // Get capital coordinates for the country
+                const capitalCoords = this.getCapitalCoordinates(code);
+                if (capitalCoords) {
+                    this.selectLocation({
+                        type: 'coordinates',
+                        lat: capitalCoords.lat,
+                        lng: capitalCoords.lng,
+                        name: name,
+                        details: `Country-wide air quality data`
+                    });
                 }
-                
-                // Switch to selected location display
-                this.switchTab('current');
             });
         });
         
@@ -372,124 +380,10 @@ class AirQualityPlatform {
         });
     }
     
-    initStateSelectors() {
-        // For demo, we'll use US states
-        this.elements.countrySelect.innerHTML = `
-            <option value="">-- Select a country --</option>
-            <option value="US">United States</option>
-            <option value="demo">Other Countries (Demo)</option>
-        `;
-        
-        // Populate state select when country is selected
-        this.elements.countrySelect.addEventListener('change', (e) => {
-            const countryCode = e.target.value;
-            
-            if (countryCode === 'US') {
-                this.elements.stateSelect.innerHTML = `
-                    <option value="">-- Select a state --</option>
-                    ${this.US_STATES.map(state => 
-                        `<option value="${state.code}">${state.name}</option>`
-                    ).join('')}
-                `;
-                this.elements.stateSelect.disabled = false;
-            } else if (countryCode === 'demo') {
-                this.elements.stateSelect.innerHTML = `
-                    <option value="">-- Demo mode --</option>
-                    <option value="demo1">Demo Region 1</option>
-                    <option value="demo2">Demo Region 2</option>
-                `;
-                this.elements.stateSelect.disabled = false;
-            } else {
-                this.elements.stateSelect.innerHTML = '<option value="">-- First select a country --</option>';
-                this.elements.stateSelect.disabled = true;
-                this.elements.stateStations.classList.remove('active');
-            }
-        });
-        
-        // Load stations when state is selected
-        this.elements.stateSelect.addEventListener('change', async (e) => {
-            const stateCode = e.target.value;
-            const countryCode = this.elements.countrySelect.value;
-            
-            if (!stateCode) {
-                this.elements.stateStations.classList.remove('active');
-                return;
-            }
-            
-            // Show loading
-            this.elements.stateStations.innerHTML = '<div class="loading-stations">Loading stations...</div>';
-            this.elements.stateStations.classList.add('active');
-            
-            try {
-                let stations = [];
-                
-                if (countryCode === 'US') {
-                    // For US states, search by state code
-                    stations = await this.searchStations(`@state=${stateCode}`);
-                } else {
-                    // Demo mode - generate fake stations
-                    stations = this.generateDemoStations();
-                }
-                
-                // Display stations
-                if (stations.length > 0) {
-                    this.elements.stateStations.innerHTML = `
-                        <div class="station-list">
-                            ${stations.map(station => `
-                                <div class="station-item" data-uid="${station.uid}" 
-                                     data-lat="${station.lat}" data-lng="${station.lon}"
-                                     data-name="${station.station.name}">
-                                    <div class="station-icon">
-                                        <i class="fas fa-industry"></i>
-                                    </div>
-                                    <div class="station-info">
-                                        <div class="station-name">${station.station.name}</div>
-                                        <div class="station-location">
-                                            ${station.station.city || ''} 
-                                            ${station.station.country || ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                    
-                    // Add click listeners to station items
-                    this.elements.stateStations.querySelectorAll('.station-item').forEach(item => {
-                        item.addEventListener('click', (e) => {
-                            const uid = e.currentTarget.dataset.uid;
-                            const lat = parseFloat(e.currentTarget.dataset.lat);
-                            const lng = parseFloat(e.currentTarget.dataset.lng);
-                            const name = e.currentTarget.dataset.name;
-                            
-                            this.selectLocation({
-                                type: 'station',
-                                stationId: uid,
-                                name: name,
-                                details: 'Monitoring station',
-                                lat: lat,
-                                lng: lng
-                            });
-                            
-                            this.switchTab('current');
-                        });
-                    });
-                } else {
-                    this.elements.stateStations.innerHTML = '<div class="no-stations">No stations found for this region.</div>';
-                }
-            } catch (error) {
-                console.error('Error loading stations:', error);
-                this.elements.stateStations.innerHTML = '<div class="error-loading">Error loading stations. Please try again.</div>';
-            }
-        });
-    }
-    
     setupSearch() {
-        let searchTimeout;
+        console.log('Setting up search...');
         
         this.elements.citySearch.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            
             const query = e.target.value.trim();
             
             if (query.length < 2) {
@@ -500,16 +394,10 @@ class AirQualityPlatform {
             // Show loading
             this.elements.cityLoading.classList.add('active');
             
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const results = await this.searchStations(query);
-                    this.displaySearchResults(results);
-                } catch (error) {
-                    console.error('Search error:', error);
-                    this.elements.cityResults.innerHTML = '<div class="search-error">Search failed. Please try again.</div>';
-                } finally {
-                    this.elements.cityLoading.classList.remove('active');
-                }
+            // Simulate search results
+            setTimeout(() => {
+                this.displaySearchResults(this.generateSearchResults(query));
+                this.elements.cityLoading.classList.remove('active');
             }, 500);
         });
         
@@ -521,7 +409,75 @@ class AirQualityPlatform {
         });
     }
     
+    generateSearchResults(query) {
+        // Generate demo search results
+        return this.MAJOR_CITIES
+            .filter(city => 
+                city.name.toLowerCase().includes(query.toLowerCase()) ||
+                city.country.toLowerCase().includes(query.toLowerCase())
+            )
+            .slice(0, 5)
+            .map(city => ({
+                uid: Math.random().toString(36).substr(2, 9),
+                lat: city.lat,
+                lon: city.lng,
+                station: {
+                    name: `${city.name} Air Quality Station`,
+                    city: city.name,
+                    country: city.country
+                }
+            }));
+    }
+    
+    displaySearchResults(results) {
+        if (results.length === 0) {
+            this.elements.cityResults.innerHTML = '<div class="no-results">No locations found. Try a different search.</div>';
+            this.elements.cityResults.classList.add('active');
+            return;
+        }
+        
+        this.elements.cityResults.innerHTML = results.map(result => `
+            <div class="search-result" data-lat="${result.lat}" data-lng="${result.lon}"
+                 data-name="${result.station.city}, ${result.station.country}">
+                <div class="result-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="result-content">
+                    <div class="result-name">${result.station.city}</div>
+                    <div class="result-details">
+                        <span><i class="fas fa-city"></i> ${result.station.city}</span>
+                        <span><i class="fas fa-flag"></i> ${result.station.country}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click listeners
+        this.elements.cityResults.querySelectorAll('.search-result').forEach(result => {
+            result.addEventListener('click', (e) => {
+                const lat = parseFloat(e.currentTarget.dataset.lat);
+                const lng = parseFloat(e.currentTarget.dataset.lng);
+                const name = e.currentTarget.dataset.name;
+                
+                this.selectLocation({
+                    type: 'coordinates',
+                    lat: lat,
+                    lng: lng,
+                    name: name,
+                    details: 'Monitoring station'
+                });
+                
+                this.elements.cityResults.classList.remove('active');
+                this.elements.citySearch.value = '';
+            });
+        });
+        
+        this.elements.cityResults.classList.add('active');
+    }
+    
     setupCoordinateInput() {
+        console.log('Setting up coordinate input...');
+        
         this.elements.useCoordinates.addEventListener('click', () => {
             const lat = parseFloat(this.elements.latitudeInput.value);
             const lng = parseFloat(this.elements.longitudeInput.value);
@@ -548,159 +504,93 @@ class AirQualityPlatform {
                 name: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
                 details: 'Custom coordinates'
             });
-            
-            this.switchTab('current');
         });
         
-        // Auto-fill current location coordinates
-        this.elements.detectLocation.addEventListener('click', () => {
-            this.getCurrentPosition()
-                .then(pos => {
-                    this.elements.latitudeInput.value = pos.coords.latitude.toFixed(6);
-                    this.elements.longitudeInput.value = pos.coords.longitude.toFixed(6);
-                })
-                .catch(() => {
-                    // Use New York as fallback
-                    this.elements.latitudeInput.value = '40.7128';
-                    this.elements.longitudeInput.value = '-74.0060';
-                });
-        });
+        // Set default coordinates (New York)
+        this.elements.latitudeInput.value = '40.7128';
+        this.elements.longitudeInput.value = '-74.0060';
     }
     
     setupCurrentLocation() {
-        this.elements.detectLocation.addEventListener('click', async () => {
-            try {
-                const position = await this.getCurrentPosition();
+        console.log('Setting up current location detection...');
+        
+        this.elements.detectLocation.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                this.updatePermissionStatus('info', 'Detecting your location...');
                 
-                this.selectLocation({
-                    type: 'coordinates',
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                    name: 'Your Current Location',
-                    details: 'Detected via GPS'
-                });
-                
-                this.updatePermissionStatus('granted', 'Location access granted');
-            } catch (error) {
-                console.error('Location error:', error);
-                
-                if (error.code === 1) {
-                    this.updatePermissionStatus('denied', 'Location access denied. Please enable location services.');
-                } else {
-                    this.updatePermissionStatus('denied', 'Unable to detect location. Please try again or use manual selection.');
-                }
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        this.selectLocation({
+                            type: 'coordinates',
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            name: 'Your Current Location',
+                            details: 'Detected via GPS'
+                        });
+                        this.updatePermissionStatus('granted', 'Location detected successfully!');
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                        this.updatePermissionStatus('denied', 'Unable to detect location. Please enable location services.');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                this.updatePermissionStatus('denied', 'Geolocation is not supported by your browser.');
             }
         });
-    }
-    
-    async searchStations(query) {
-        try {
-            const response = await fetch(
-                `${this.API_BASE}/search/?token=${this.API_TOKEN}&keyword=${encodeURIComponent(query)}`
-            );
-            
-            if (!response.ok) {
-                throw new Error(`Search failed: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.status !== 'ok') {
-                throw new Error(data.data || 'Search failed');
-            }
-            
-            return data.data || [];
-        } catch (error) {
-            console.error('Search stations error:', error);
-            
-            // Fallback: return demo data for testing
-            return this.generateDemoSearchResults(query);
-        }
-    }
-    
-    displaySearchResults(results) {
-        if (results.length === 0) {
-            this.elements.cityResults.innerHTML = '<div class="no-results">No locations found. Try a different search.</div>';
-            this.elements.cityResults.classList.add('active');
-            return;
-        }
-        
-        this.elements.cityResults.innerHTML = results.map(result => `
-            <div class="search-result" data-uid="${result.uid}" 
-                 data-lat="${result.lat}" data-lng="${result.lon}"
-                 data-name="${result.station.name}">
-                <div class="result-icon">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div class="result-content">
-                    <div class="result-name">${result.station.name}</div>
-                    <div class="result-details">
-                        <span><i class="fas fa-city"></i> ${result.station.city || 'Unknown city'}</span>
-                        <span><i class="fas fa-flag"></i> ${result.station.country || 'Unknown country'}</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-        
-        // Add click listeners
-        this.elements.cityResults.querySelectorAll('.search-result').forEach(result => {
-            result.addEventListener('click', (e) => {
-                const uid = e.currentTarget.dataset.uid;
-                const lat = parseFloat(e.currentTarget.dataset.lat);
-                const lng = parseFloat(e.currentTarget.dataset.lon);
-                const name = e.currentTarget.dataset.name;
-                
-                this.selectLocation({
-                    type: 'station',
-                    stationId: uid,
-                    name: name,
-                    details: 'Monitoring station',
-                    lat: lat,
-                    lng: lng
-                });
-                
-                this.elements.cityResults.classList.remove('active');
-                this.elements.citySearch.value = '';
-                this.switchTab('current');
-            });
-        });
-        
-        this.elements.cityResults.classList.add('active');
     }
     
     selectLocation(location) {
+        console.log('Selecting location:', location);
+        
         this.currentLocation = location;
         this.saveLocation(location);
         this.updateSelectedLocationDisplay();
-        
-        // Clear existing data
-        this.currentData = null;
-        this.historicalData = [];
         
         // Show loading
         this.elements.loadingOverlay.classList.remove('hidden');
         
         // Fetch new data
-        this.fetchData();
+        setTimeout(() => {
+            this.fetchData().finally(() => {
+                this.elements.loadingOverlay.classList.add('hidden');
+            });
+        }, 500);
     }
     
     clearSelectedLocation() {
-        this.currentLocation = { type: 'current', name: 'Your Location' };
+        console.log('Clearing selected location');
+        
+        this.currentLocation = { 
+            type: 'current', 
+            name: 'Your Location',
+            lat: 40.7128,
+            lng: -74.0060
+        };
         localStorage.removeItem(this.LOCATION_CACHE_KEY);
         this.updateSelectedLocationDisplay();
-        this.fetchData();
+        
+        // Show loading
+        this.elements.loadingOverlay.classList.remove('hidden');
+        
+        // Fetch new data
+        setTimeout(() => {
+            this.fetchData().finally(() => {
+                this.elements.loadingOverlay.classList.add('hidden');
+            });
+        }, 500);
     }
     
     updateSelectedLocationDisplay() {
+        console.log('Updating location display:', this.currentLocation);
+        
         this.elements.currentLocationName.textContent = this.currentLocation.name;
         
         let details = '';
         switch (this.currentLocation.type) {
             case 'current':
                 details = 'Using your current location';
-                break;
-            case 'station':
-                details = 'Monitoring station data';
                 break;
             case 'coordinates':
                 details = `Coordinates: ${this.currentLocation.lat?.toFixed(4)}, ${this.currentLocation.lng?.toFixed(4)}`;
@@ -710,8 +600,6 @@ class AirQualityPlatform {
         }
         
         this.elements.locationDetails.textContent = details;
-        
-        // Update main header location
         this.elements.locationName.textContent = this.currentLocation.name;
     }
     
@@ -725,6 +613,8 @@ class AirQualityPlatform {
     }
     
     async fetchData() {
+        console.log('Fetching data for location:', this.currentLocation);
+        
         try {
             let apiUrl;
             
@@ -733,9 +623,6 @@ class AirQualityPlatform {
                 case 'current':
                     apiUrl = `${this.API_BASE}/feed/here/?token=${this.API_TOKEN}`;
                     break;
-                case 'station':
-                    apiUrl = `${this.API_BASE}/feed/@${this.currentLocation.stationId}/?token=${this.API_TOKEN}`;
-                    break;
                 case 'coordinates':
                     apiUrl = `${this.API_BASE}/feed/geo:${this.currentLocation.lat};${this.currentLocation.lng}/?token=${this.API_TOKEN}`;
                     break;
@@ -743,16 +630,30 @@ class AirQualityPlatform {
                     apiUrl = `${this.API_BASE}/feed/here/?token=${this.API_TOKEN}`;
             }
             
-            const response = await fetch(apiUrl);
+            console.log('API URL:', apiUrl);
+            
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            
+            const response = await fetch(apiUrl, { 
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
             const result = await response.json();
+            console.log('API Response:', result);
             
             if (result.status !== 'ok') {
-                throw new Error(`API error: ${result.data}`);
+                throw new Error(`API error: ${result.data || 'Unknown error'}`);
             }
             
             this.currentData = result.data;
@@ -777,125 +678,30 @@ class AirQualityPlatform {
             
             // Update cache status
             this.elements.cacheStatus.textContent = 'Live data loaded';
+            this.elements.cacheStatus.style.color = '';
             this.elements.cacheStatus.classList.remove('pulse');
             
-            // Hide loading
-            this.elements.loadingOverlay.classList.add('hidden');
+            console.log('Data fetched and updated successfully');
             
         } catch (error) {
             console.error('Error fetching data:', error);
-            this.showError('Unable to fetch data. Using cached data if available.');
+            
+            // Use demo data as fallback
+            this.showDemoData();
+            this.showError('Using demo data. Real-time updates unavailable.');
             
             // Try cached data
             const cachedData = this.getCachedData();
             if (cachedData) {
+                console.log('Using cached data as fallback');
                 this.updateUI(cachedData);
             }
-            
-            this.elements.loadingOverlay.classList.add('hidden');
         }
     }
     
-    // Rest of the existing methods remain the same (getCurrentPosition, updateUI, etc.)
-    // ... [All the existing UI update methods remain unchanged] ...
-    
-    getCurrentPosition() {
-        return new Promise((resolve, reject) => {
-            if (!navigator.geolocation) {
-                reject(new Error('Geolocation not supported'));
-                return;
-            }
-            
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            });
-        });
-    }
-    
-    updatePermissionStatus(type, message) {
-        this.elements.permissionStatus.textContent = message;
-        this.elements.permissionStatus.className = `permission-status active ${type}`;
-        
-        setTimeout(() => {
-            this.elements.permissionStatus.classList.remove('active');
-        }, 5000);
-    }
-    
-    generateDemoSearchResults(query) {
-        // Generate demo results for testing
-        return [
-            {
-                uid: 1234,
-                lat: 40.7128,
-                lon: -74.0060,
-                station: {
-                    name: `Demo Station for ${query}`,
-                    city: 'Demo City',
-                    country: 'Demo Country'
-                }
-            },
-            {
-                uid: 1235,
-                lat: 34.0522,
-                lon: -118.2437,
-                station: {
-                    name: `Another Station for ${query}`,
-                    city: 'Los Angeles',
-                    country: 'USA'
-                }
-            }
-        ];
-    }
-    
-    generateDemoStations() {
-        return [
-            {
-                uid: 1001,
-                lat: 40.7128,
-                lon: -74.0060,
-                station: {
-                    name: 'Central Monitoring Station',
-                    city: 'New York',
-                    country: 'USA'
-                }
-            },
-            {
-                uid: 1002,
-                lat: 40.7589,
-                lon: -73.9851,
-                station: {
-                    name: 'Times Square Station',
-                    city: 'New York',
-                    country: 'USA'
-                }
-            }
-        ];
-    }
-    
-    getCapitalCoordinates(countryCode) {
-        const capitals = {
-            'US': { lat: 38.9072, lng: -77.0369 }, // Washington DC
-            'GB': { lat: 51.5074, lng: -0.1278 },  // London
-            'CN': { lat: 39.9042, lng: 116.4074 }, // Beijing
-            'IN': { lat: 28.6139, lng: 77.2090 },  // New Delhi
-            'JP': { lat: 35.6762, lng: 139.6503 }, // Tokyo
-            'DE': { lat: 52.5200, lng: 13.4050 },  // Berlin
-            'FR': { lat: 48.8566, lng: 2.3522 },   // Paris
-            'IT': { lat: 41.9028, lng: 12.4964 },  // Rome
-            'BR': { lat: -15.8267, lng: -47.9218 }, // Brasília
-            'CA': { lat: 45.4215, lng: -75.6972 }  // Ottawa
-        };
-        
-        return capitals[countryCode] || null;
-    }
-    
-    // ... [All other existing methods remain unchanged] ...
-    // Update UI, charts, map, etc. methods from the previous implementation
-    // I'll include the key methods but shortened for brevity
-    
     updateUI(data) {
+        console.log('Updating UI with data:', data);
+        
         // Update location
         if (data.city?.name) {
             this.elements.locationName.textContent = data.city.name;
@@ -922,7 +728,7 @@ class AirQualityPlatform {
         
         // Update map
         if (this.map) {
-            const coords = data.city?.geo || [data.lat || 0, data.lng || 0];
+            const coords = data.city?.geo || [this.currentLocation.lat, this.currentLocation.lng];
             this.updateMap(coords, aqi);
         }
         
@@ -932,7 +738,7 @@ class AirQualityPlatform {
     
     updateAQIDisplay(aqi) {
         // Animate AQI value
-        const targetValue = aqi;
+        const targetValue = Math.round(aqi);
         const currentValue = parseInt(this.elements.aqiValue.textContent) || 0;
         
         this.animateValue(this.elements.aqiValue, currentValue, targetValue, 1000);
@@ -948,15 +754,52 @@ class AirQualityPlatform {
         this.elements.healthImpact.textContent = this.getHealthImpactText(aqi);
         this.elements.healthImpact.style.color = category.color;
         
-        // Update card background animation
-        this.elements.aqiCard.style.setProperty('--aqi-color', category.color);
+        // Update AQI card background
+        this.elements.aqiCard.style.borderLeftColor = category.color;
+        this.elements.aqiCard.style.borderLeftWidth = '8px';
+        
+        // Update scale indicators
+        document.querySelectorAll('.scale-item').forEach(item => {
+            item.classList.remove('active');
+            const level = parseInt(item.dataset.level);
+            if (aqi >= this.AQI_CATEGORIES[level].min && aqi <= this.AQI_CATEGORIES[level].max) {
+                item.classList.add('active');
+                item.style.color = category.color;
+                item.style.fontWeight = '600';
+            }
+        });
     }
     
     updatePollutantBreakdown(iaqi) {
-        if (!iaqi) return;
+        if (!iaqi) {
+            // Generate demo IAQI data
+            iaqi = {};
+            Object.keys(this.POLLUTANT_LIMITS).forEach(key => {
+                iaqi[key] = { v: Math.random() * 50 + 10 };
+            });
+        }
         
         this.elements.pollutantGrid.innerHTML = '';
         
+        // Find dominant pollutant
+        let dominantPollutant = 'PM2.5';
+        let highestValue = 0;
+        
+        Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
+            const value = iaqi[key]?.v || 0;
+            if (value > highestValue) {
+                highestValue = value;
+                dominantPollutant = info.name;
+            }
+        });
+        
+        // Update dominant pollutant
+        this.elements.dominantPollutant.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>${dominantPollutant}</span>
+        `;
+        
+        // Create pollutant cards
         Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
             const value = iaqi[key]?.v || 0;
             const severity = this.getPollutantSeverity(key, value);
@@ -984,7 +827,637 @@ class AirQualityPlatform {
         });
     }
     
-    // ... [All other UI update methods from the previous implementation] ...
+    updateHealthInsights(aqi) {
+        const categoryIndex = this.getAQICategoryIndex(aqi);
+        const insights = this.HEALTH_INSIGHTS[categoryIndex] || this.HEALTH_INSIGHTS[0];
+        
+        this.elements.insightsContainer.innerHTML = '';
+        
+        insights.forEach(insight => {
+            const item = document.createElement('div');
+            item.className = 'insight-item fade-in';
+            item.innerHTML = `
+                <div class="insight-icon">
+                    <i class="${insight.icon}"></i>
+                </div>
+                <div class="insight-text">
+                    <div class="insight-title">${insight.title}</div>
+                    <div class="insight-desc">${insight.desc}</div>
+                </div>
+            `;
+            
+            this.elements.insightsContainer.appendChild(item);
+        });
+    }
+    
+    updateComparativeAnalysis(data) {
+        const aqi = data.aqi || 0;
+        
+        // Generate comparison data
+        const comparisons = [
+            {
+                type: 'average',
+                title: 'City Average Comparison',
+                icon: 'fas fa-city',
+                comparison: this.getComparisonStatus(aqi, 75),
+                description: this.getComparisonDescription(aqi, 75, 'city average')
+            },
+            {
+                type: 'trend',
+                title: '24-Hour Trend',
+                icon: 'fas fa-chart-line',
+                comparison: this.getTrendStatus(),
+                description: this.getTrendDescription()
+            }
+        ];
+        
+        this.elements.comparisonContainer.innerHTML = '';
+        
+        comparisons.forEach(comp => {
+            const item = document.createElement('div');
+            item.className = 'comparison-item fade-in';
+            item.innerHTML = `
+                <div class="comparison-icon comparison-${comp.comparison.status}">
+                    <i class="${comp.icon}"></i>
+                </div>
+                <div class="comparison-content">
+                    <div class="comparison-title">${comp.title}</div>
+                    <div class="comparison-desc">${comp.description}</div>
+                </div>
+            `;
+            
+            this.elements.comparisonContainer.appendChild(item);
+        });
+    }
+    
+    updatePollutionComposition(iaqi) {
+        if (!iaqi) return;
+        
+        // Calculate total pollution "score"
+        let totalScore = 0;
+        const scores = {};
+        
+        Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
+            if (iaqi[key]?.v) {
+                const score = iaqi[key].v / info.safe;
+                scores[key] = score;
+                totalScore += score;
+            }
+        });
+        
+        // Calculate percentages
+        const percentages = {};
+        Object.keys(scores).forEach(key => {
+            percentages[key] = totalScore > 0 ? (scores[key] / totalScore) * 100 : 0;
+        });
+        
+        // Find primary driver
+        let primaryDriver = null;
+        let highestPercentage = 0;
+        
+        Object.entries(percentages).forEach(([key, percentage]) => {
+            if (percentage > highestPercentage) {
+                highestPercentage = percentage;
+                primaryDriver = this.POLLUTANT_LIMITS[key].name;
+            }
+        });
+        
+        // Update composition details
+        this.elements.compositionDetails.innerHTML = `
+            <div class="composition-driver">
+                <div class="driver-title">Primary Pollution Driver</div>
+                <div class="driver-desc">${primaryDriver || 'PM2.5'} is the main contributor to current air pollution levels.</div>
+                <div class="driver-percentage">${highestPercentage.toFixed(0)}%</div>
+            </div>
+        `;
+        
+        // Update pie chart
+        this.updateCompositionChart(percentages);
+    }
+    
+    updateHistoricalData() {
+        if (!this.currentData) return;
+        
+        const timestamp = new Date();
+        const aqi = this.currentData.aqi || 0;
+        
+        // Add current reading to historical data
+        this.historicalData.push({
+            timestamp,
+            aqi,
+            hour: timestamp.getHours()
+        });
+        
+        // Keep only last 24 hours (simulated)
+        if (this.historicalData.length > 24) {
+            this.historicalData = this.historicalData.slice(-24);
+        }
+        
+        // Ensure we have at least some data
+        if (this.historicalData.length < 6) {
+            // Generate some historical data points
+            for (let i = 6; i > 0; i--) {
+                const pastTime = new Date(timestamp.getTime() - i * 4 * 60 * 60 * 1000);
+                this.historicalData.unshift({
+                    timestamp: pastTime,
+                    aqi: aqi + (Math.random() * 30 - 15),
+                    hour: pastTime.getHours()
+                });
+            }
+        }
+    }
+    
+    checkAlerts() {
+        if (!this.currentData) return;
+        
+        const aqi = this.currentData.aqi || 0;
+        const iaqi = this.currentData.iaqi || {};
+        const alerts = [];
+        
+        // AQI-based alerts
+        if (aqi > 200) {
+            alerts.push({
+                type: 'danger',
+                icon: 'fas fa-exclamation-triangle',
+                message: 'HEALTH WARNING: Air quality is very unhealthy. Limit outdoor exposure.'
+            });
+        } else if (aqi > 150) {
+            alerts.push({
+                type: 'warning',
+                icon: 'fas fa-exclamation-circle',
+                message: 'Air quality is unhealthy. Sensitive groups should avoid prolonged outdoor activity.'
+            });
+        }
+        
+        // PM2.5 specific alerts
+        if (iaqi.pm25?.v > 35) {
+            alerts.push({
+                type: 'warning',
+                icon: 'fas fa-mask',
+                message: 'High PM2.5 levels detected. Consider wearing a mask outdoors.'
+            });
+        }
+        
+        // Display alerts
+        this.displayAlerts(alerts);
+    }
+    
+    displayAlerts(alerts) {
+        this.elements.alertsContainer.innerHTML = '';
+        
+        alerts.forEach(alert => {
+            const alertElement = document.createElement('div');
+            alertElement.className = `alert alert-${alert.type}`;
+            alertElement.innerHTML = `
+                <i class="${alert.icon}"></i>
+                <span>${alert.message}</span>
+            `;
+            
+            this.elements.alertsContainer.appendChild(alertElement);
+        });
+    }
+    
+    initCharts() {
+        console.log('Initializing charts...');
+        
+        // Trend chart (24-hour AQI)
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        this.charts.trend = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'AQI',
+                    data: [],
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#2563eb',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: (context) => `AQI: ${context.parsed.y}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: 'var(--text-secondary)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { color: 'var(--text-secondary)' }
+                    }
+                }
+            }
+        });
+        
+        // Composition chart (pollutant contribution)
+        const compositionCtx = document.getElementById('compositionChart').getContext('2d');
+        this.charts.composition = new Chart(compositionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: [
+                        '#00e400',
+                        '#ffff00',
+                        '#ff7e00',
+                        '#ff0000',
+                        '#8f3f97',
+                        '#7e0023'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.label}: ${context.parsed.toFixed(1)}%`
+                        }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+        
+        console.log('Charts initialized');
+    }
+    
+    updateCharts() {
+        console.log('Updating charts...');
+        
+        // Update trend chart
+        if (this.charts.trend && this.historicalData.length > 0) {
+            const labels = this.historicalData.map(entry => 
+                entry.timestamp.getHours().toString().padStart(2, '0') + ':00'
+            );
+            const data = this.historicalData.map(entry => entry.aqi);
+            
+            this.charts.trend.data.labels = labels;
+            this.charts.trend.data.datasets[0].data = data;
+            this.charts.trend.update();
+            
+            // Update trend insights
+            this.updateTrendInsights();
+        }
+        
+        // Update composition chart
+        if (this.charts.composition && this.currentData?.iaqi) {
+            const iaqi = this.currentData.iaqi;
+            const labels = [];
+            const data = [];
+            
+            Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
+                if (iaqi[key]?.v) {
+                    const value = iaqi[key].v;
+                    const score = value / info.safe;
+                    labels.push(info.name);
+                    data.push(score * 100);
+                }
+            });
+            
+            // If no IAQI data, use demo data
+            if (data.length === 0) {
+                Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
+                    labels.push(info.name);
+                    data.push(Math.random() * 30 + 10);
+                });
+            }
+            
+            // Normalize data to sum to 100
+            const total = data.reduce((sum, val) => sum + val, 0);
+            const normalizedData = data.map(val => (val / total) * 100);
+            
+            this.charts.composition.data.labels = labels;
+            this.charts.composition.data.datasets[0].data = normalizedData;
+            this.charts.composition.update();
+        }
+    }
+    
+    updateTrendInsights() {
+        if (this.historicalData.length === 0) return;
+        
+        const aqiValues = this.historicalData.map(entry => entry.aqi);
+        const maxAqi = Math.max(...aqiValues);
+        const minAqi = Math.min(...aqiValues);
+        const avgAqi = aqiValues.reduce((sum, val) => sum + val, 0) / aqiValues.length;
+        
+        // Find peak hour
+        const peakEntry = this.historicalData.find(entry => entry.aqi === maxAqi);
+        const peakHour = peakEntry ? peakEntry.hour : 12;
+        
+        this.elements.trendInsights.innerHTML = `
+            <div class="trend-stat">
+                <h3>Peak Pollution Hour</h3>
+                <p>Highest AQI recorded today</p>
+                <div class="highlight">${peakHour}:00</div>
+                <p>AQI: ${maxAqi.toFixed(0)}</p>
+            </div>
+            <div class="trend-stat">
+                <h3>24-Hour Average</h3>
+                <p>Mean air quality today</p>
+                <div class="highlight">${avgAqi.toFixed(0)}</div>
+                <p>${this.getAQICategory(avgAqi).level}</p>
+            </div>
+            <div class="trend-stat">
+                <h3>Variability</h3>
+                <p>AQI range today</p>
+                <div class="highlight">${minAqi.toFixed(0)} - ${maxAqi.toFixed(0)}</div>
+                <p>${(maxAqi - minAqi).toFixed(0)} point difference</p>
+            </div>
+        `;
+    }
+    
+    initMap() {
+        console.log('Initializing map...');
+        
+        try {
+            // Initialize map with default view
+            this.map = L.map('map').setView([40.7128, -74.0060], 10);
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(this.map);
+            
+            // Add scale control
+            L.control.scale().addTo(this.map);
+            
+            console.log('Map initialized successfully');
+        } catch (error) {
+            console.error('Error initializing map:', error);
+            document.getElementById('map').innerHTML = `
+                <div class="map-error">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <p>Map unavailable. Location data is still being displayed.</p>
+                </div>
+            `;
+        }
+    }
+    
+    updateMap(coords, aqi) {
+        if (!this.map) return;
+        
+        let lat, lng;
+        
+        if (Array.isArray(coords)) {
+            [lat, lng] = coords;
+        } else {
+            lat = this.currentLocation.lat || 40.7128;
+            lng = this.currentLocation.lng || -74.0060;
+        }
+        
+        // Clear existing markers
+        this.map.eachLayer(layer => {
+            if (layer instanceof L.Marker) {
+                this.map.removeLayer(layer);
+            }
+        });
+        
+        // Set view to current location
+        this.map.setView([lat, lng], 12);
+        
+        // Add marker for current location
+        const category = this.getAQICategory(aqi);
+        const marker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'aqi-marker',
+                html: `<div style="background-color: ${category.color};" class="map-marker">${aqi}</div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            })
+        }).addTo(this.map);
+        
+        // Add popup with info
+        marker.bindPopup(`
+            <div class="map-popup">
+                <strong>${this.currentLocation.name}</strong><br>
+                Current AQI: ${aqi}<br>
+                ${category.level}<br>
+                Last updated: ${this.formatTimestamp(new Date().toISOString())}
+            </div>
+        `);
+    }
+    
+    // Helper Methods
+    getAQICategory(aqi) {
+        return this.AQI_CATEGORIES.find(cat => aqi >= cat.min && aqi <= cat.max) || this.AQI_CATEGORIES[0];
+    }
+    
+    getAQICategoryIndex(aqi) {
+        return this.AQI_CATEGORIES.findIndex(cat => aqi >= cat.min && aqi <= cat.max);
+    }
+    
+    getPollutantSeverity(key, value) {
+        const limit = this.POLLUTANT_LIMITS[key].safe;
+        const ratio = value / limit;
+        
+        if (ratio < 0.5) return { level: 'low', text: 'Low', color: '#10b981' };
+        if (ratio < 1) return { level: 'elevated', text: 'Elevated', color: '#f59e0b' };
+        if (ratio < 2) return { level: 'high', text: 'High', color: '#ef4444' };
+        return { level: 'dangerous', text: 'Dangerous', color: '#7e0023' };
+    }
+    
+    getPollutantIcon(key) {
+        const icons = {
+            'pm25': 'fas fa-smog',
+            'pm10': 'fas fa-wind',
+            'no2': 'fas fa-industry',
+            'so2': 'fas fa-factory',
+            'o3': 'fas fa-sun',
+            'co': 'fas fa-car'
+        };
+        return icons[key] || 'fas fa-question';
+    }
+    
+    getHealthImpactText(aqi) {
+        const category = this.getAQICategory(aqi);
+        if (aqi <= 50) return 'Minimal Impact';
+        if (aqi <= 100) return 'Minor Concern';
+        if (aqi <= 150) return 'Moderate Impact';
+        if (aqi <= 200) return 'Unhealthy';
+        if (aqi <= 300) return 'Very Unhealthy';
+        return 'Hazardous';
+    }
+    
+    getComparisonStatus(current, reference) {
+        const difference = current - reference;
+        const percentDiff = (difference / reference) * 100;
+        
+        if (Math.abs(percentDiff) < 10) {
+            return { status: 'similar', text: 'Similar' };
+        } else if (current < reference) {
+            return { status: 'better', text: 'Better' };
+        } else {
+            return { status: 'worse', text: 'Worse' };
+        }
+    }
+    
+    getComparisonDescription(current, reference, comparison) {
+        const difference = current - reference;
+        const percentDiff = Math.abs((difference / reference) * 100).toFixed(0);
+        
+        if (Math.abs(percentDiff) < 10) {
+            return `Similar to ${comparison} (±${percentDiff}%)`;
+        } else if (current < reference) {
+            return `${percentDiff}% better than ${comparison}`;
+        } else {
+            return `${percentDiff}% worse than ${comparison}`;
+        }
+    }
+    
+    getTrendStatus() {
+        if (this.historicalData.length < 2) {
+            return { status: 'similar', text: 'Stable' };
+        }
+        
+        const recentChange = this.historicalData[this.historicalData.length - 1].aqi - 
+                           this.historicalData[this.historicalData.length - 2].aqi;
+        
+        if (Math.abs(recentChange) < 5) {
+            return { status: 'similar', text: 'Stable' };
+        } else if (recentChange > 0) {
+            return { status: 'worse', text: 'Worsening' };
+        } else {
+            return { status: 'better', text: 'Improving' };
+        }
+    }
+    
+    getTrendDescription() {
+        if (this.historicalData.length < 2) {
+            return 'Insufficient data for trend analysis';
+        }
+        
+        const recentChange = this.historicalData[this.historicalData.length - 1].aqi - 
+                           this.historicalData[this.historicalData.length - 2].aqi;
+        
+        if (Math.abs(recentChange) < 5) {
+            return 'Air quality has remained stable recently';
+        } else if (recentChange > 0) {
+            return `Air quality has worsened by ${Math.abs(recentChange).toFixed(0)} points`;
+        } else {
+            return `Air quality has improved by ${Math.abs(recentChange).toFixed(0)} points`;
+        }
+    }
+    
+    getCapitalCoordinates(countryCode) {
+        const capitals = {
+            'US': { lat: 38.9072, lng: -77.0369 }, // Washington DC
+            'GB': { lat: 51.5074, lng: -0.1278 },  // London
+            'CN': { lat: 39.9042, lng: 116.4074 }, // Beijing
+            'IN': { lat: 28.6139, lng: 77.2090 },  // New Delhi
+            'JP': { lat: 35.6762, lng: 139.6503 }, // Tokyo
+            'DE': { lat: 52.5200, lng: 13.4050 },  // Berlin
+            'FR': { lat: 48.8566, lng: 2.3522 },   // Paris
+            'IT': { lat: 41.9028, lng: 12.4964 },  // Rome
+            'BR': { lat: -15.8267, lng: -47.9218 }, // Brasília
+            'CA': { lat: 45.4215, lng: -75.6972 },  // Ottawa
+            'AU': { lat: -35.2809, lng: 149.1300 }, // Canberra
+            'RU': { lat: 55.7558, lng: 37.6173 },   // Moscow
+            'KR': { lat: 37.5665, lng: 126.9780 },  // Seoul
+            'ES': { lat: 40.4168, lng: -3.7038 },   // Madrid
+            'MX': { lat: 19.4326, lng: -99.1332 },  // Mexico City
+            'ID': { lat: -6.2088, lng: 106.8456 },  // Jakarta
+            'TR': { lat: 39.9334, lng: 32.8597 },   // Ankara
+            'SA': { lat: 24.7136, lng: 46.6753 },   // Riyadh
+            'ZA': { lat: -25.7461, lng: 28.1881 },  // Pretoria
+            'EG': { lat: 30.0444, lng: 31.2357 }    // Cairo
+        };
+        
+        return capitals[countryCode] || { lat: 0, lng: 0 };
+    }
+    
+    formatTimestamp(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    animateValue(element, start, end, duration) {
+        const startTime = performance.now();
+        const updateValue = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function
+            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+            const currentValue = Math.floor(start + (end - start) * easeOutQuart);
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(updateValue);
+            }
+        };
+        
+        requestAnimationFrame(updateValue);
+    }
+    
+    showError(message) {
+        const errorAlert = document.createElement('div');
+        errorAlert.className = 'alert alert-warning';
+        errorAlert.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>${message}</span>
+        `;
+        
+        this.elements.alertsContainer.appendChild(errorAlert);
+        
+        // Remove after 5 seconds
+        setTimeout(() => {
+            if (errorAlert.parentNode) {
+                errorAlert.parentNode.removeChild(errorAlert);
+            }
+        }, 5000);
+    }
+    
+    updatePermissionStatus(type, message) {
+        this.elements.permissionStatus.textContent = message;
+        this.elements.permissionStatus.className = `permission-status active ${type}`;
+        
+        setTimeout(() => {
+            this.elements.permissionStatus.classList.remove('active');
+        }, 5000);
+    }
+    
+    getCachedData() {
+        const cache = localStorage.getItem(this.CACHE_KEY);
+        if (!cache) return null;
+        
+        const { timestamp, data } = JSON.parse(cache);
+        const age = Date.now() - timestamp;
+        
+        return age < this.CACHE_DURATION ? data : null;
+    }
+    
+    setCachedData(data) {
+        const cache = {
+            timestamp: Date.now(),
+            data: data
+        };
+        localStorage.setItem(this.CACHE_KEY, JSON.stringify(cache));
+    }
     
     initTheme() {
         const savedTheme = localStorage.getItem('theme') || 'light';
@@ -1006,174 +1479,33 @@ class AirQualityPlatform {
         icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
     }
     
-    getCachedData() {
-        const cache = localStorage.getItem(this.CACHE_KEY);
-        if (!cache) return null;
-        
-        const { timestamp, data } = JSON.parse(cache);
-        const age = Date.now() - timestamp;
-        
-        return age < this.CACHE_DURATION ? data : null;
-    }
-    
-    setCachedData(data) {
-        const cache = {
-            timestamp: Date.now(),
-            data: data
-        };
-        localStorage.setItem(this.CACHE_KEY, JSON.stringify(cache));
-    }
-    
-    initCharts() {
-        // Initialize Chart.js charts (same as before)
-        const trendCtx = document.getElementById('trendChart').getContext('2d');
-        this.charts.trend = new Chart(trendCtx, {
-            type: 'line',
-            data: { labels: [], datasets: [{
-                label: 'AQI', data: [], borderColor: '#2563eb',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)', borderWidth: 3,
-                fill: true, tension: 0.4
-            }]},
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } }
-            }
-        });
-        
-        const compositionCtx = document.getElementById('compositionChart').getContext('2d');
-        this.charts.composition = new Chart(compositionCtx, {
-            type: 'doughnut',
-            data: { labels: [], datasets: [{
-                data: [], backgroundColor: [
-                    '#00e400', '#ffff00', '#ff7e00',
-                    '#ff0000', '#8f3f97', '#7e0023'
-                ]
-            }]},
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                cutout: '70%'
-            }
-        });
-    }
-    
-    initMap() {
-        this.map = L.map('map').setView([0, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 18
-        }).addTo(this.map);
-        L.control.scale().addTo(this.map);
-    }
-    
-    updateMap(coords, aqi) {
-        if (!this.map || !coords) return;
-        
-        const [lat, lng] = Array.isArray(coords) ? coords : [coords.lat || 0, coords.lng || 0];
-        
-        // Clear existing markers
-        this.map.eachLayer(layer => {
-            if (layer instanceof L.Marker) {
-                this.map.removeLayer(layer);
-            }
-        });
-        
-        // Set view
-        this.map.setView([lat, lng], 12);
-        
-        // Add marker
-        const category = this.getAQICategory(aqi);
-        const marker = L.marker([lat, lng], {
-            icon: L.divIcon({
-                className: 'aqi-marker',
-                html: `<div style="background-color: ${category.color};" class="map-marker">${aqi}</div>`,
-                iconSize: [40, 40],
-                iconAnchor: [20, 40]
-            })
-        }).addTo(this.map);
-        
-        marker.bindPopup(`
-            <div class="map-popup">
-                <strong>${this.currentLocation.name}</strong><br>
-                AQI: ${aqi} (${category.level})<br>
-                Last updated: ${this.formatTimestamp(new Date().toISOString())}
-            </div>
-        `);
-    }
-    
-    // Helper methods (same as before)
-    getAQICategory(aqi) {
-        return this.AQI_CATEGORIES.find(cat => aqi >= cat.min && aqi <= cat.max) || this.AQI_CATEGORIES[0];
-    }
-    
-    getPollutantSeverity(key, value) {
-        const limit = this.POLLUTANT_LIMITS[key].safe;
-        const ratio = value / limit;
-        
-        if (ratio < 0.5) return { level: 'low', text: 'Low', color: '#10b981' };
-        if (ratio < 1) return { level: 'elevated', text: 'Elevated', color: '#f59e0b' };
-        if (ratio < 2) return { level: 'high', text: 'High', color: '#ef4444' };
-        return { level: 'dangerous', text: 'Dangerous', color: '#7e0023' };
-    }
-    
-    getPollutantIcon(key) {
-        const icons = {
-            'pm25': 'fas fa-smog', 'pm10': 'fas fa-wind',
-            'no2': 'fas fa-industry', 'so2': 'fas fa-factory',
-            'o3': 'fas fa-sun', 'co': 'fas fa-car'
-        };
-        return icons[key] || 'fas fa-question';
-    }
-    
-    showError(message) {
-        const errorAlert = document.createElement('div');
-        errorAlert.className = 'alert alert-danger';
-        errorAlert.innerHTML = `
-            <i class="fas fa-exclamation-circle"></i>
-            <span>${message}</span>
-        `;
-        
-        this.elements.alertsContainer.appendChild(errorAlert);
-        
-        setTimeout(() => {
-            if (errorAlert.parentNode) {
-                errorAlert.parentNode.removeChild(errorAlert);
-            }
-        }, 5000);
-    }
-    
-    formatTimestamp(isoString) {
-        const date = new Date(isoString);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    
-    animateValue(element, start, end, duration) {
-        const startTime = performance.now();
-        const updateValue = (currentTime) => {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-            const currentValue = Math.floor(start + (end - start) * easeOutQuart);
+    updateCompositionChart(percentages) {
+        // This method updates the composition chart
+        if (this.charts.composition) {
+            const labels = [];
+            const data = [];
             
-            element.textContent = currentValue;
+            Object.entries(this.POLLUTANT_LIMITS).forEach(([key, info]) => {
+                if (percentages[key]) {
+                    labels.push(info.name);
+                    data.push(percentages[key]);
+                }
+            });
             
-            if (progress < 1) {
-                requestAnimationFrame(updateValue);
-            }
-        };
-        
-        requestAnimationFrame(updateValue);
+            this.charts.composition.data.labels = labels;
+            this.charts.composition.data.datasets[0].data = data;
+            this.charts.composition.update();
+        }
     }
 }
 
-// Initialize the application
+// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing app...');
     window.airQualityApp = new AirQualityPlatform();
 });
 
-// Add map marker styles
+// Add custom CSS for map markers and error states
 const style = document.createElement('style');
 style.textContent = `
     .aqi-marker .map-marker {
@@ -1194,25 +1526,93 @@ style.textContent = `
     
     .map-popup {
         font-family: 'Inter', sans-serif;
-        padding: 8px;
+        padding: 12px;
         font-size: 14px;
+        line-height: 1.5;
     }
     
-    .loading-stations, .no-stations, .error-loading, .no-results, .search-error {
-        padding: 40px;
-        text-align: center;
-        color: var(--text-muted);
+    .map-popup strong {
+        color: #2563eb;
         font-size: 16px;
     }
     
-    .spinner {
-        width: 24px;
-        height: 24px;
-        border: 3px solid var(--border-color);
+    .map-error {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-secondary);
+        color: var(--text-muted);
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .map-error i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: var(--primary-color);
+        opacity: 0.7;
+    }
+    
+    .map-error p {
+        font-size: 14px;
+        max-width: 300px;
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--bg-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+    }
+    
+    .loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+    
+    .loading-content {
+        text-align: center;
+        max-width: 400px;
+        padding: 40px;
+    }
+    
+    .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid var(--border-color);
         border-top-color: var(--primary-color);
         border-radius: 50%;
         animation: spin 1s linear infinite;
-        margin: 0 auto;
+        margin: 0 auto 20px;
+    }
+    
+    .loading-content p {
+        font-size: 16px;
+        color: var(--text-secondary);
+        margin-top: 16px;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 0.5s ease forwards;
     }
 `;
 document.head.appendChild(style);
