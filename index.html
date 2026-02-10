@@ -49,7 +49,149 @@
             </div>
         </div>
     </header>
-
+<!-- Location Selection Section -->
+<section class="location-selector-section">
+    <div class="container">
+        <div class="location-selector card">
+            <div class="selector-header">
+                <h2><i class="fas fa-globe-americas"></i> Select Location</h2>
+                <div class="selector-subtitle">Monitor air quality anywhere in the world</div>
+            </div>
+            
+            <div class="selector-tabs">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="city">
+                        <i class="fas fa-city"></i> City
+                    </button>
+                    <button class="tab-button" data-tab="state">
+                        <i class="fas fa-map"></i> State/Region
+                    </button>
+                    <button class="tab-button" data-tab="country">
+                        <i class="fas fa-flag"></i> Country
+                    </button>
+                    <button class="tab-button" data-tab="coordinates">
+                        <i class="fas fa-crosshairs"></i> Coordinates
+                    </button>
+                    <button class="tab-button" data-tab="current">
+                        <i class="fas fa-location-arrow"></i> Current Location
+                    </button>
+                </div>
+                
+                <div class="tab-content active" id="cityTab">
+                    <div class="location-search">
+                        <div class="search-input-group">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="citySearch" placeholder="Search for a city (e.g., 'New York', 'Tokyo', 'London')" 
+                                   autocomplete="off">
+                            <div class="search-loading" id="cityLoading">
+                                <div class="spinner"></div>
+                            </div>
+                        </div>
+                        <div class="search-results" id="cityResults"></div>
+                    </div>
+                    
+                    <div class="location-presets">
+                        <h3>Major Cities</h3>
+                        <div class="preset-grid" id="cityPresets">
+                            <!-- City buttons will be added here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="stateTab">
+                    <div class="state-selection">
+                        <div class="selection-row">
+                            <div class="selection-group">
+                                <label for="countrySelect">
+                                    <i class="fas fa-flag"></i> Select Country
+                                </label>
+                                <select id="countrySelect">
+                                    <option value="">-- Select a country --</option>
+                                </select>
+                            </div>
+                            <div class="selection-group">
+                                <label for="stateSelect">
+                                    <i class="fas fa-map"></i> Select State/Region
+                                </label>
+                                <select id="stateSelect" disabled>
+                                    <option value="">-- First select a country --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="state-stations" id="stateStations"></div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="countryTab">
+                    <div class="country-selection">
+                        <div class="search-input-group">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="countrySearch" placeholder="Search for a country">
+                        </div>
+                        <div class="country-grid" id="countryGrid">
+                            <!-- Country buttons will be added here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="coordinatesTab">
+                    <div class="coordinates-input">
+                        <div class="input-group">
+                            <label for="latitudeInput">
+                                <i class="fas fa-latitude"></i> Latitude
+                            </label>
+                            <input type="number" id="latitudeInput" placeholder="e.g., 40.7128" step="any" min="-90" max="90">
+                        </div>
+                        <div class="input-group">
+                            <label for="longitudeInput">
+                                <i class="fas fa-longitude"></i> Longitude
+                            </label>
+                            <input type="number" id="longitudeInput" placeholder="e.g., -74.0060" step="any" min="-180" max="180">
+                        </div>
+                        <button id="useCoordinates" class="btn-primary">
+                            <i class="fas fa-map-marker-alt"></i> Use These Coordinates
+                        </button>
+                    </div>
+                    <div class="coordinates-help">
+                        <p><i class="fas fa-info-circle"></i> Enter decimal coordinates (e.g., 40.7128, -74.0060 for New York)</p>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="currentTab">
+                    <div class="current-location-info">
+                        <div class="location-card">
+                            <i class="fas fa-satellite-dish"></i>
+                            <h3>Use Your Current Location</h3>
+                            <p>AirSense will automatically detect your location and show the nearest air quality monitoring station.</p>
+                            <button id="detectLocation" class="btn-primary">
+                                <i class="fas fa-location-crosshairs"></i> Detect My Location
+                            </button>
+                        </div>
+                        <div class="permission-status" id="permissionStatus"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="selected-location" id="selectedLocation">
+                <div class="selected-header">
+                    <h3><i class="fas fa-check-circle"></i> Currently Monitoring</h3>
+                    <button id="clearLocation" class="btn-text">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+                <div class="selected-info">
+                    <div class="location-badge">
+                        <i class="fas fa-map-pin"></i>
+                        <span id="currentLocationName">Automatic (Your Location)</span>
+                    </div>
+                    <div class="location-details">
+                        <span id="locationDetails">Detecting nearest station...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
     <!-- Smart Alerts Banner -->
     <div id="alertsContainer" class="alerts-container"></div>
 
