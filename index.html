@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirSense • Live Air Quality Analytics</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Initializing air quality monitoring...</p>
+        </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark/light mode">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-wind logo-icon"></i>
+                    <h1>AirSense</h1>
+                    <span class="logo-subtitle">Live Air Quality Analytics</span>
+                </div>
+                <div class="header-info">
+                    <div class="update-status">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Updates every 5 min</span>
+                    </div>
+                    <div class="location-display">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span id="locationName">Detecting location...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Smart Alerts Banner -->
+    <div id="alertsContainer" class="alerts-container"></div>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Section 1: Live AQI Overview (Hero) -->
+        <section class="hero-section">
+            <div class="aqi-card" id="aqiCard">
+                <div class="aqi-main">
+                    <div class="aqi-label">
+                        <span class="label-text">CURRENT AIR QUALITY INDEX</span>
+                        <div class="aqi-timestamp">
+                            <i class="far fa-clock"></i>
+                            <span id="lastUpdated">Just now</span>
+                        </div>
+                    </div>
+                    <div class="aqi-value-container">
+                        <div class="aqi-value" id="aqiValue">--</div>
+                        <div class="aqi-category" id="aqiCategory">Loading...</div>
+                    </div>
+                    <div class="aqi-details">
+                        <div class="dominant-pollutant">
+                            <span class="detail-label">Primary Pollutant</span>
+                            <div class="pollutant-chip" id="dominantPollutant">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>PM2.5</span>
+                            </div>
+                        </div>
+                        <div class="health-impact">
+                            <span class="detail-label">Health Impact</span>
+                            <div class="health-level" id="healthImpact">Minimal</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="aqi-scale">
+                    <div class="scale-item" data-level="0">Good</div>
+                    <div class="scale-item" data-level="1">Moderate</div>
+                    <div class="scale-item" data-level="2">Unhealthy (Sensitive)</div>
+                    <div class="scale-item" data-level="3">Unhealthy</div>
+                    <div class="scale-item" data-level="4">Very Unhealthy</div>
+                    <div class="scale-item" data-level="5">Hazardous</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Pollutant Breakdown & Health Insights -->
+        <div class="grid-row">
+            <section class="pollutant-section card">
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-bar"></i> Pollutant Breakdown</h2>
+                    <div class="section-subtitle">Real-time concentrations vs. safe limits</div>
+                </div>
+                <div class="pollutant-grid" id="pollutantGrid">
+                    <!-- Pollutant cards will be generated here -->
+                </div>
+            </section>
+
+            <section class="health-insights card">
+                <div class="section-header">
+                    <h2><i class="fas fa-heartbeat"></i> Health Impact Insights</h2>
+                    <div class="section-subtitle">Personalized recommendations</div>
+                </div>
+                <div class="insights-container" id="insightsContainer">
+                    <!-- Insights will be generated here -->
+                </div>
+            </section>
+        </div>
+
+        <!-- Section 3: Short-Term Trend Analytics -->
+        <section class="trend-section card">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-line"></i> 24-Hour Trend Analysis</h2>
+                <div class="section-subtitle">Recent air quality patterns (no forecasting)</div>
+            </div>
+            <div class="trend-container">
+                <div class="trend-chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+                <div class="trend-insights" id="trendInsights">
+                    <!-- Trend insights will be generated here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Comparative & Composition Analysis -->
+        <div class="grid-row">
+            <section class="comparison-section card">
+                <div class="section-header">
+                    <h2><i class="fas fa-balance-scale"></i> Comparative Analysis</h2>
+                    <div class="section-subtitle">How your air compares</div>
+                </div>
+                <div class="comparison-container" id="comparisonContainer">
+                    <!-- Comparison data will be generated here -->
+                </div>
+            </section>
+
+            <section class="composition-section card">
+                <div class="section-header">
+                    <h2><i class="fas fa-pie-chart"></i> Pollution Composition</h2>
+                    <div class="section-subtitle">Primary pollution drivers</div>
+                </div>
+                <div class="composition-container">
+                    <div class="composition-chart">
+                        <canvas id="compositionChart"></canvas>
+                    </div>
+                    <div class="composition-details" id="compositionDetails">
+                        <!-- Composition details will be generated here -->
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Section 5: Map View -->
+        <section class="map-section card">
+            <div class="section-header">
+                <h2><i class="fas fa-map"></i> Live Air Quality Map</h2>
+                <div class="section-subtitle">Nearby monitoring stations</div>
+            </div>
+            <div class="map-container">
+                <div id="map"></div>
+                <div class="map-legend">
+                    <div class="legend-title">AQI Scale</div>
+                    <div class="legend-items">
+                        <div class="legend-item" style="background-color: #00e400;">0-50</div>
+                        <div class="legend-item" style="background-color: #ffff00;">51-100</div>
+                        <div class="legend-item" style="background-color: #ff7e00;">101-150</div>
+                        <div class="legend-item" style="background-color: #ff0000;">151-200</div>
+                        <div class="legend-item" style="background-color: #8f3f97;">201-300</div>
+                        <div class="legend-item" style="background-color: #7e0023;">300+</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <div class="logo">
+                        <i class="fas fa-wind"></i>
+                        <span>AirSense</span>
+                    </div>
+                    <p>Live air quality monitoring and analytics platform. Data updates every 5 minutes.</p>
+                    <p class="data-source">
+                        <i class="fas fa-database"></i>
+                        Data Source: World Air Quality Index (WAQI) API
+                    </p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://aqicn.org" target="_blank" class="footer-link">
+                        <i class="fas fa-external-link-alt"></i>
+                        WAQI Data
+                    </a>
+                    <a href="https://www.who.int/health-topics/air-pollution" target="_blank" class="footer-link">
+                        <i class="fas fa-book-medical"></i>
+                        Health Guidelines
+                    </a>
+                    <button id="refreshData" class="footer-link">
+                        <i class="fas fa-redo"></i>
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2023 AirSense Analytics. This platform provides real-time air quality insights and is not a medical device.</p>
+                <p class="cache-status" id="cacheStatus">Live data loaded</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
